@@ -3,7 +3,9 @@
 //
 
 #include "pjwrapper.h"
-#include "pjutils.h"
+#include "jni_log.h"
+#include "pj_utils.h"
+#include "pjcommon/pj_trans.h"
 #include <pjlib.h>
 
 pj_caching_pool caching_pool;
@@ -26,9 +28,13 @@ int pjwrapper_init() {
 
     mem = &caching_pool.factory;
 
+#ifdef DEBUG
+    pj_log_set_level(PJ_LOG_MAX_LEVEL);
+#else
     pj_log_set_level(3);
+#endif
     pj_log_set_decor(param_log_decor);
-    pj_log_set_log_func(app_log_func);
+    pj_log_set_log_func(jni_log_func);
 
     rc = pj_init();
     if (rc != 0) {
@@ -66,15 +72,23 @@ int pjwrapper_uninit() {
     return rc;
 }
 
+pj_trans *trans;
+
 int pjwrapper_start() {
+    pj_status_t rc = PJ_SUCCESS;
     FUNC_ENTER
+
+    trans = new pj_trans(mem);
 
     FUNC_EXIT
     return 0;
 }
 
 int pjwrapper_stop() {
+    pj_status_t rc = PJ_SUCCESS;
     FUNC_ENTER
+
+    delete trans;
 
     FUNC_EXIT
     return 0;

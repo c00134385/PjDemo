@@ -1,22 +1,9 @@
 //
 // Created by Jl C on 2019/4/6.
 //
-
-#include "pjutils.h"
-#include <pjlib.h>
 #include "jni_log.h"
 
-void app_perror(const char *msg, pj_status_t rc)
-{
-    char errbuf[PJ_ERR_MSG_SIZE];
-
-    PJ_CHECK_STACK();
-
-    pj_strerror(rc, errbuf, sizeof(errbuf));
-    PJ_LOG(3,("test", "%s: [pj_status_t=%d] %s", msg, rc, errbuf));
-}
-
-void app_log_func(int level, const char *data, int len) {
+void jni_log_func(int level, const char *data, int len) {
     switch (level) {
         case 1:
             LOGF("%s", data);

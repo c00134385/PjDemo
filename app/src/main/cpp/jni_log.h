@@ -15,5 +15,8 @@
 #define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG,__VA_ARGS__) // 定义LOGE类型
 #define  LOGF(...)  __android_log_print(ANDROID_LOG_FATAL,LOG,__VA_ARGS__) // 定义LOGF类型
 
+#include <pjlib.h>
+
+void jni_log_func(int level, const char *data, int len);
 
 #endif //PJDEMO_JNI_LOG_H

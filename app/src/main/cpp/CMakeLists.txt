@@ -8,6 +8,7 @@ set(distribution_DIR ${CMAKE_SOURCE_DIR}/../distribution)
 #3.设置第三方库头文件所在位置
 include_directories(${CMAKE_SOURCE_DIR}/pjlib/include)
 include_directories(${CMAKE_SOURCE_DIR}/pjlib-util/include)
+include_directories(${CMAKE_SOURCE_DIR}/pjcommon)
 
 #4.设置第三方库头库所在位置
 #link_directories(${CMAKE_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI}/)
@@ -22,15 +23,17 @@ set_target_properties(pjlib
         PROPERTIES IMPORTED_LOCATION
         ${CMAKE_SOURCE_DIR}/pjlib/lib/libpj-arm-unknown-linux-androideabi.a)
 
+AUX_SOURCE_DIRECTORY(./pjcommon COMMON_SRCS)
 
 add_library(native-lib SHARED
             com_jl_pjdemo_PjJni.cpp
             pjwrapper.cpp
-            pjutils.cpp)
+        jni_log.cpp
+        ${COMMON_SRCS})
 
-set_target_properties(native-lib PROPERTIES
-                      LIBRARY_OUTPUT_DIRECTORY
-                      ${distribution_DIR}/libs/${ANDROID_ABI})
+#set_target_properties(native-lib PROPERTIES
+#                      LIBRARY_OUTPUT_DIRECTORY
+#                      ${distribution_DIR}/libs/${ANDROID_ABI})
 
 find_library(log-lib log)
 #find_library()
