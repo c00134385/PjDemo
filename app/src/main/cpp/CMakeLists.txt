@@ -29,6 +29,8 @@ add_library(native-lib SHARED
             com_jl_pjdemo_PjJni.cpp
             pjwrapper.cpp
         jni_log.cpp
+        jni_cb.cpp
+        jni_utils.cpp
         ${COMMON_SRCS})
 
 #set_target_properties(native-lib PROPERTIES

@@ -26,10 +26,10 @@ JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_uninit
 /*
  * Class:     com_jl_pjdemo_PjJni
  * Method:    start
- * Signature: (Ljava/lang/String;I)I
+ * Signature: (Ljava/lang/String;ILcom/jl/pjdemo/PjCb;)I
  */
 JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_start
-  (JNIEnv *, jobject, jstring, jint);
+  (JNIEnv *, jobject, jstring, jint, jobject);
 
 /*
  * Class:     com_jl_pjdemo_PjJni

@@ -9,6 +9,7 @@
 #include <string>
 #include "pj_obj.h"
 #include "pj_thread.h"
+#include "pj_cb.h"
 
 #define UDP_PORT1   51234
 #define ADDRESS1		"127.0.0.1"
@@ -26,6 +27,7 @@ public:
     pj_status_t send(const void *buf,
                        pj_ssize_t *len);
 
+    void register_cb(pj_cb *cb);
     pj_bool_t running;
 public:
     pj_sock_t ss=PJ_INVALID_SOCKET, cs=PJ_INVALID_SOCKET;
@@ -33,6 +35,8 @@ public:
     pj_thread *m_thread;
     std::string ipaddr = ADDRESS1;
     pj_uint16_t port = UDP_PORT1;
+
+    pj_cb *m_cb = NULL;
 };
 
 #endif //PJDEMO_PJTRANS_H

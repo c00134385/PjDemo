@@ -3,6 +3,7 @@
 /* Header for class com_jl_pjdemo_PjJni */
 #include "com_jl_pjdemo_PjJni.h"
 #include "pjwrapper.h"
+#include "jni_cb.h"
 #include <pjlib.h>
 #include <string>
 #include <iostream>
@@ -16,7 +17,7 @@ extern "C" {
  * Signature: (Lcom/jl/pjdemo/PjCb;)I
  */
 JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_init
-        (JNIEnv *, jobject, jobject) {
+        (JNIEnv *, jobject, jobject jobj) {
     return pjwrapper_init();
 }
 
@@ -36,8 +37,8 @@ JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_uninit
  * Signature: (Ljava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_start
-        (JNIEnv *, jobject, jstring, jint) {
-    return pjwrapper_start();
+        (JNIEnv *env, jobject, jstring, jint, jobject jobj) {
+    return pjwrapper_start(jni_cb::create(env, jobj));
 }
 
 /*
@@ -47,6 +48,7 @@ JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_start
  */
 JNIEXPORT jint JNICALL Java_com_jl_pjdemo_PjJni_stop
         (JNIEnv *, jobject) {
+    jni_cb::destroy();
     return pjwrapper_stop();
 }
 

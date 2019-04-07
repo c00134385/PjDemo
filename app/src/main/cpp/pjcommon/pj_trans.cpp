@@ -37,6 +37,9 @@ int trans_proc(void* params) {
 	        PJ_LOG(1, ("", "received:%d data:%s", received, recvdata));
 	    }
 #endif
+        if(trans->m_cb) {
+	        trans->m_cb->on_event(1, "received", "data");
+	    }
 
         pj_thread_sleep(1000);
     }
@@ -131,4 +134,8 @@ pj_status_t pj_trans::send(const void *buf,
     }
 
     return rc;
+}
+
+void pj_trans::register_cb(pj_cb *cb) {
+    this->m_cb = cb;
 }

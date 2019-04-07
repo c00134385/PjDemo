@@ -72,13 +72,16 @@ int pjwrapper_uninit() {
     return rc;
 }
 
+//std::shared_ptr<pj_trans> trans;
 pj_trans *trans;
 
-int pjwrapper_start() {
+int pjwrapper_start(pj_cb *cb) {
     pj_status_t rc = PJ_SUCCESS;
     FUNC_ENTER
 
     trans = new pj_trans(mem);
+//    trans = std::shared_ptr<pj_trans>(new pj_trans(mem));
+    trans->register_cb(cb);
 
     FUNC_EXIT
     return 0;

@@ -5,11 +5,13 @@
 #ifndef PJDEMO_PJWRAPPER_H
 #define PJDEMO_PJWRAPPER_H
 
+#include "pj_cb.h"
+
 int pjwrapper_init();
 
 int pjwrapper_uninit();
 
-int pjwrapper_start();
+int pjwrapper_start(pj_cb *cb);
 
 int pjwrapper_stop();
 

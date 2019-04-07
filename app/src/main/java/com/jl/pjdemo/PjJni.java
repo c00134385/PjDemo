@@ -18,7 +18,7 @@ public class PjJni {
 
     public native int uninit();
 
-    public native int start(String ip, int port);
+    public native int start(String ip, int port, PjCb cb);
 
     public native int stop();
 

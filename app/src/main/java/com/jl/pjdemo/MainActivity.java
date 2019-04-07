@@ -58,7 +58,13 @@ public class MainActivity extends AppCompatActivity {
                 })));
                 break;
             case R.id.btn_start:
-                tvResult.setText(String.valueOf(PjJni.getInstance().start("", 0)));
+                tvResult.setText(String.valueOf(PjJni.getInstance().start("", 0, new PjCb() {
+                    @Override
+                    public int onEvent(int event, String param) {
+                        Timber.d("event:%d, param:%s", event, param);
+                        return 0;
+                    }
+                })));
                 break;
             case R.id.btn_stop:
                 tvResult.setText(String.valueOf(PjJni.getInstance().stop()));
