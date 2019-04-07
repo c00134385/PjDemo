@@ -5,6 +5,10 @@
 #include "pj_trans.h"
 #include "pj_utils.h"
 
+#define BASIC_SOCKET  0
+#define SELECT_SOCKET 1
+#define IOBUFF_SOCKET 0
+
 
 int trans_proc(void* params) {
     FUNC_ENTER
@@ -14,12 +18,12 @@ int trans_proc(void* params) {
     pj_memset(recvdata, 0, sizeof(recvdata));
     pj_ssize_t received = sizeof(received);
     while (trans->running) {
-        PJ_LOG(1, ("", "count:%d", count++));
         pj_status_t rc;
         pj_sockaddr_in addr;
         int srclen = sizeof(addr);
 
         pj_bzero(&addr, sizeof(addr));
+#if BASIC_SOCKET
 #if 1
         rc = pj_sock_recvfrom(trans->ss, recvdata, &received, 0, &addr, &srclen);
         if (rc != PJ_SUCCESS) {
@@ -37,10 +41,18 @@ int trans_proc(void* params) {
 	        PJ_LOG(1, ("", "received:%d data:%s", received, recvdata));
 	    }
 #endif
+#elif SELECT_SOCKET
+        rc = trans->do_select();
+	    if(rc <= 0) {
+            continue;
+	    }
+#elif IOBUFF_SOCKET
+	    // iobuff test
+#endif
         if(trans->m_cb) {
 	        trans->m_cb->on_event(1, "received", "data");
 	    }
-
+        PJ_LOG(1, ("", "count:%d", count++));
         pj_thread_sleep(1000);
     }
     FUNC_EXIT
@@ -79,6 +91,23 @@ pj_trans::pj_trans(pj_pool_factory *mem) : pj_obj(mem) {
 
     if ((rc=pj_sock_bind(cs, &srcaddr, sizeof(srcaddr))) != 0) {
         app_perror("...bind error", rc);
+    }
+
+    for(int i = 0; i < 3; i++) {
+        rc = pj_sock_socket(pj_AF_INET(), pj_SOCK_DGRAM(), 0, &sss[i]);
+        if (rc != 0) {
+            app_perror("...error: unable to create cs socket", rc);
+        }
+        /* Bind server socket. */
+        pj_bzero(&dstaddr, sizeof(dstaddr));
+        dstaddr.sin_family = pj_AF_INET();
+        dstaddr.sin_port = pj_htons(port + 1 + i);
+        dstaddr.sin_addr = pj_inet_addr(pj_cstr(&s, ipaddr.c_str()));
+
+        PJ_LOG(1, ("","port:%d ipaddr:%s", port + 1 + i, ipaddr.c_str()));
+        if ((rc=pj_sock_bind(sss[i], &dstaddr, sizeof(dstaddr))) != 0) {
+            app_perror("...bind error udp:", rc);
+        }
     }
 
     running = PJ_TRUE;
@@ -138,4 +167,49 @@ pj_status_t pj_trans::send(const void *buf,
 
 void pj_trans::register_cb(pj_cb *cb) {
     this->m_cb = cb;
+}
+
+int pj_trans::do_select() {
+    pj_status_t rc;
+    pj_fd_set_t fds[3];
+    pj_time_val timeout;
+    int i, n;
+
+    int setcount[3];
+
+    for (i=0; i<3; ++i) {
+        PJ_FD_ZERO(&fds[i]);
+        PJ_FD_SET(sss[0], &fds[i]);
+        PJ_FD_SET(sss[1], &fds[i]);
+        PJ_FD_SET(sss[2], &fds[i]);
+        setcount[i] = 0;
+    }
+
+    timeout.sec = 2;
+    timeout.msec = 0;
+
+    rc = pj_sock_select(0, &fds[0], &fds[1], &fds[2],
+                       &timeout);
+    if (rc < 0) {
+        app_perror("...send error", pj_get_netos_error());
+        return rc;
+    } else if(rc == 0) {
+        app_perror("...timeout....", pj_get_netos_error());
+        return rc;
+    } else {
+        PJ_LOG(1,("tset", "test"));
+        for (i = 0; i < 3; ++i) {
+            if (PJ_FD_ISSET(sss[0], &fds[i]))
+                setcount[i]++;
+            if (PJ_FD_ISSET(sss[1], &fds[i]))
+                setcount[i]++;
+            if (PJ_FD_ISSET(sss[2], &fds[i]))
+                setcount[i]++;
+        }
+
+        PJ_LOG(1,("", "setcount:%d-%d-%d", setcount[READ_FDS], setcount[WRITE_FDS], setcount[EXCEPT_FDS]));
+
+        return rc;
+    }
+
 }

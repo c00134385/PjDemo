@@ -14,6 +14,13 @@
 #define UDP_PORT1   51234
 #define ADDRESS1		"127.0.0.1"
 
+enum
+{
+    READ_FDS,
+    WRITE_FDS,
+    EXCEPT_FDS
+};
+
 class pj_trans : public pj_obj{
 public:
     pj_trans(pj_pool_factory *mem);
@@ -29,12 +36,17 @@ public:
 
     void register_cb(pj_cb *cb);
     pj_bool_t running;
+    int do_select();
 public:
     pj_sock_t ss=PJ_INVALID_SOCKET, cs=PJ_INVALID_SOCKET;
     pj_sockaddr_in dstaddr, srcaddr;
     pj_thread *m_thread;
     std::string ipaddr = ADDRESS1;
     pj_uint16_t port = UDP_PORT1;
+
+
+    /*do_select*/
+    pj_sock_t sss[3];
 
     pj_cb *m_cb = NULL;
 };

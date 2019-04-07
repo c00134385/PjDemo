@@ -100,13 +100,16 @@ int pjwrapper_stop() {
 
 int pjwrapper_action() {
     FUNC_ENTER
+    static int offset = 0;
     pj_status_t rc;
     pj_sockaddr_in dstaddr;
     pj_str_t s;
     pj_bzero(&dstaddr, sizeof(dstaddr));
     dstaddr.sin_family = pj_AF_INET();
-    dstaddr.sin_port = pj_htons(trans->port);
+    dstaddr.sin_port = pj_htons(trans->port + 1 + offset);
     dstaddr.sin_addr = pj_inet_addr(pj_cstr(&s, trans->ipaddr.c_str()));
+
+    PJ_LOG(1, ("","port:%d ipaddr:%s", trans->port + 1 + offset, trans->ipaddr.c_str()));
 
     std::string test = "test";
     pj_ssize_t len = test.size();

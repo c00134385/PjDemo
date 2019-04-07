@@ -43,7 +43,6 @@ public class MainActivity extends AppCompatActivity {
 
     @OnClick({R.id.btn_init, R.id.btn_start, R.id.btn_stop, R.id.btn_version, R.id.btn_uninit})
     void onClick(View view) {
-        Timber.d("id:%d", view.getId());
         switch (view.getId()) {
             case R.id.btn_version:
                 tvVersion.setText(PjJni.getInstance().version());

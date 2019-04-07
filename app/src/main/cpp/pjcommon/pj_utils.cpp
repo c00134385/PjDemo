@@ -11,5 +11,5 @@ void app_perror(const char *msg, pj_status_t rc)
     PJ_CHECK_STACK();
 
     pj_strerror(rc, errbuf, sizeof(errbuf));
-    PJ_LOG(3,("test", "%s: [pj_status_t=%d] %s", msg, rc, errbuf));
+    PJ_LOG(1,("test", "%s: [pj_status_t=%d] %s", msg, rc, errbuf));
 }
