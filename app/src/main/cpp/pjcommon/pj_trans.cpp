@@ -2,12 +2,73 @@
 // Created by Jl C on 2019/4/6.
 //
 
+#include <sys/ioctl.h>
 #include "pj_trans.h"
 #include "pj_utils.h"
 
 #define BASIC_SOCKET  0
-#define SELECT_SOCKET 1
-#define IOBUFF_SOCKET 0
+#define SELECT_SOCKET 0
+#define IOBUFF_SOCKET 1
+
+#define THIS_FILE	    "test_udp"
+
+static pj_ssize_t            callback_read_size,
+        callback_write_size,
+        callback_accept_status,
+        callback_connect_status;
+static pj_ioqueue_key_t     *callback_read_key,
+        *callback_write_key,
+        *callback_accept_key,
+        *callback_connect_key;
+static pj_ioqueue_op_key_t  *callback_read_op,
+        *callback_write_op,
+        *callback_accept_op;
+
+static void on_ioqueue_read(pj_ioqueue_key_t *key,
+                            pj_ioqueue_op_key_t *op_key,
+                            pj_ssize_t bytes_read)
+{
+    callback_read_key = key;
+    callback_read_op = op_key;
+    callback_read_size = bytes_read;
+    PJ_LOG(1, ("", "callback_read_size:%d", callback_read_size));
+//    TRACE__((THIS_FILE, "     callback_read_key = %p, bytes=%d",
+//            key, bytes_read));
+}
+
+static void on_ioqueue_write(pj_ioqueue_key_t *key,
+                             pj_ioqueue_op_key_t *op_key,
+                             pj_ssize_t bytes_written)
+{
+    callback_write_key = key;
+    callback_write_op = op_key;
+    callback_write_size = bytes_written;
+    PJ_LOG(1, ("", "callback_write_size:%d", callback_write_size));
+}
+
+static void on_ioqueue_accept(pj_ioqueue_key_t *key,
+                              pj_ioqueue_op_key_t *op_key,
+                              pj_sock_t sock, int status)
+{
+    PJ_UNUSED_ARG(sock);
+    callback_accept_key = key;
+    callback_accept_op = op_key;
+    callback_accept_status = status;
+}
+
+static void on_ioqueue_connect(pj_ioqueue_key_t *key, int status)
+{
+    callback_connect_key = key;
+    callback_connect_status = status;
+}
+
+static pj_ioqueue_callback test_cb =
+        {
+                &on_ioqueue_read,
+                &on_ioqueue_write,
+                &on_ioqueue_accept,
+                &on_ioqueue_connect,
+        };
 
 
 int trans_proc(void* params) {
@@ -48,6 +109,7 @@ int trans_proc(void* params) {
 	    }
 #elif IOBUFF_SOCKET
 	    // iobuff test
+        trans->do_iobuffer();
 #endif
         if(trans->m_cb) {
 	        trans->m_cb->on_event(1, "received", "data");
@@ -109,6 +171,32 @@ pj_trans::pj_trans(pj_pool_factory *mem) : pj_obj(mem) {
             app_perror("...bind error udp:", rc);
         }
     }
+
+    send_buf = (char*)pj_pool_alloc(pool, bufsize);
+    recv_buf = (char*)pj_pool_alloc(pool, bufsize);
+
+    PJ_LOG(1, ("", "PJ_IOQUEUE_MAX_HANDLES:%d", PJ_IOQUEUE_MAX_HANDLES));
+    rc = pj_ioqueue_create(pool, PJ_IOQUEUE_MAX_HANDLES, &ioque);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...pj_ioqueue_create failed:", rc);
+    }
+
+    rc = pj_ioqueue_set_default_concurrency(ioque, PJ_TRUE);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...pj_ioqueue_set_default_concurrency failed:", rc);
+    }
+
+    rc = pj_ioqueue_register_sock(pool, ioque, ss, NULL,
+                                  &test_cb, &skey);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...error(10): ioqueue_register error", rc);
+    }
+    rc = pj_ioqueue_register_sock( pool, ioque, cs, NULL,
+                                   &test_cb, &ckey);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...error(11): ioqueue_register error", rc);
+    }
+
 
     running = PJ_TRUE;
     m_thread = new pj_thread(mem, trans_proc, this);
@@ -179,17 +267,18 @@ int pj_trans::do_select() {
 
     for (i=0; i<3; ++i) {
         PJ_FD_ZERO(&fds[i]);
-        PJ_FD_SET(sss[0], &fds[i]);
-        PJ_FD_SET(sss[1], &fds[i]);
-        PJ_FD_SET(sss[2], &fds[i]);
         setcount[i] = 0;
     }
+
+    PJ_FD_SET(ss, &fds[0]);
+    PJ_FD_SET(sss[0], &fds[0]);
+    PJ_FD_SET(sss[1], &fds[0]);
+    PJ_FD_SET(sss[2], &fds[0]);
 
     timeout.sec = 2;
     timeout.msec = 0;
 
-    rc = pj_sock_select(0, &fds[0], &fds[1], &fds[2],
-                       &timeout);
+    rc = pj_sock_select(FD_SETSIZE, &fds[0], &fds[1], &fds[2], NULL);
     if (rc < 0) {
         app_perror("...send error", pj_get_netos_error());
         return rc;
@@ -197,19 +286,128 @@ int pj_trans::do_select() {
         app_perror("...timeout....", pj_get_netos_error());
         return rc;
     } else {
-        PJ_LOG(1,("tset", "test"));
-        for (i = 0; i < 3; ++i) {
-            if (PJ_FD_ISSET(sss[0], &fds[i]))
-                setcount[i]++;
-            if (PJ_FD_ISSET(sss[1], &fds[i]))
-                setcount[i]++;
-            if (PJ_FD_ISSET(sss[2], &fds[i]))
-                setcount[i]++;
+        if (PJ_FD_ISSET(ss, &fds[0])) {
+            int nread;
+            ioctl(ss, FIONREAD, &nread);//取得数据量交给nread
+            char recvdata[512+4];
+            pj_memset(recvdata, 0, sizeof(recvdata));
+            pj_ssize_t received = sizeof(received);
+            rc = pj_sock_recv(ss, recvdata, &received, 0);
+            if (rc != PJ_SUCCESS) {
+                app_perror("...recv error", rc);
+                rc = -155;
+            } else {
+                PJ_LOG(1, ("", "received:%d data:%s  nread:%d", received, recvdata, nread));
+            }
         }
+
+//        for (i = 0; i < 3; ++i) {
+//            if (PJ_FD_ISSET(sss[0], &fds[i]))
+//                setcount[i]++;
+//            if (PJ_FD_ISSET(sss[1], &fds[i]))
+//                setcount[i]++;
+//            if (PJ_FD_ISSET(sss[2], &fds[i]))
+//                setcount[i]++;
+//        }
 
         PJ_LOG(1,("", "setcount:%d-%d-%d", setcount[READ_FDS], setcount[WRITE_FDS], setcount[EXCEPT_FDS]));
 
         return rc;
     }
 
+}
+
+int pj_trans::do_select1() {
+    pj_status_t rc;
+
+    int result;
+    fd_set readfds, testfds;
+    FD_ZERO(&readfds);
+    FD_SET(sss[0], &readfds);//将服务器端socket加入到集合中
+    FD_SET(sss[1], &readfds);//将服务器端socket加入到集合中
+    FD_SET(sss[2], &readfds);//将服务器端socket加入到集合中
+
+    while (1) {
+        char ch;
+        int fd;
+        int nread;
+        testfds = readfds;//将需要监视的描述符集copy到select查询队列中，select会对其修改，所以一定要分开使用变量
+
+        PJ_LOG(1, ("test", "server waiting"));
+        /*无限期阻塞，并测试文件描述符变动 */
+        result = select(FD_SETSIZE, &testfds, (fd_set *)0,(fd_set *)0, (struct timeval *) 0); //FD_SETSIZE：系统默认的最大文件描述符
+        PJ_LOG(1, ("test", "select result:%d", result));
+        if(result < 1)
+        {
+            perror("server5");
+            exit(1);
+        }
+
+        /*找到相关文件描述符*/
+        if (FD_ISSET(sss[0], &testfds)) {
+            int nread;
+            ioctl(sss[0], FIONREAD, &nread);//取得数据量交给nread
+            char recvdata[512+4];
+            pj_memset(recvdata, 0, sizeof(recvdata));
+            pj_ssize_t received = sizeof(received);
+            rc = pj_sock_recv(sss[0], recvdata, &received, 0);
+            if (rc != PJ_SUCCESS) {
+                app_perror("...recv error", rc);
+                rc = -155;
+            } else {
+                PJ_LOG(1, ("", "received:%d data:%s  nread:%d", received, recvdata, nread));
+            }
+        }
+        if (FD_ISSET(sss[1], &testfds)) {
+            char recvdata[512+4];
+            pj_memset(recvdata, 0, sizeof(recvdata));
+            pj_ssize_t received = sizeof(received);
+            rc = pj_sock_recv(sss[1], recvdata, &received, 0);
+            if (rc != PJ_SUCCESS) {
+                app_perror("...recv error", rc);
+                rc = -155;
+            } else {
+                PJ_LOG(1, ("", "1received:%d data:%s", received, recvdata));
+            }
+        }
+        if (FD_ISSET(sss[2], &testfds)) {
+            char recvdata[512+4];
+            pj_memset(recvdata, 0, sizeof(recvdata));
+            pj_ssize_t received = sizeof(received);
+            rc = pj_sock_recv(sss[2], recvdata, &received, 0);
+            if (rc != PJ_SUCCESS) {
+                app_perror("...recv error", rc);
+                rc = -155;
+            } else {
+                PJ_LOG(1, ("", "2received:%d data:%s", received, recvdata));
+            }
+        }
+    }
+
+    return rc;
+}
+
+int pj_trans::do_iobuffer() {
+    pj_status_t rc;
+
+    pj_sockaddr_in addr;
+    int addrlen;
+    pj_ssize_t bytes;
+
+    pj_bzero(&addr, sizeof(addr));
+    addrlen = sizeof(addr);
+    bytes = bufsize;
+    rc = pj_ioqueue_recvfrom(skey, &read_op, recv_buf, &bytes, 0,
+                             &addr, &addrlen);
+    if (rc != PJ_SUCCESS && rc != PJ_EPENDING) {
+        app_perror("...error: pj_ioqueue_recvfrom", rc);
+    } else if (rc == PJ_EPENDING) {
+        PJ_LOG(3, (THIS_FILE,
+                "......ok: recvfrom returned pending"));
+    } else {
+        PJ_LOG(3, (THIS_FILE,
+                "......error: recvfrom returned immediate ok!"));
+    }
+
+    return rc;
 }

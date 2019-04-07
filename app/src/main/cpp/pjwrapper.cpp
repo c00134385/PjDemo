@@ -106,10 +106,14 @@ int pjwrapper_action() {
     pj_str_t s;
     pj_bzero(&dstaddr, sizeof(dstaddr));
     dstaddr.sin_family = pj_AF_INET();
-    dstaddr.sin_port = pj_htons(trans->port + 1 + offset);
+    dstaddr.sin_port = pj_htons(trans->port);
     dstaddr.sin_addr = pj_inet_addr(pj_cstr(&s, trans->ipaddr.c_str()));
 
-    PJ_LOG(1, ("","port:%d ipaddr:%s", trans->port + 1 + offset, trans->ipaddr.c_str()));
+    PJ_LOG(1, ("","port:%d ipaddr:%s", trans->port, trans->ipaddr.c_str()));
+
+    if(offset % 4 == 0) {
+        offset = 0;
+    }
 
     std::string test = "test";
     pj_ssize_t len = test.size();

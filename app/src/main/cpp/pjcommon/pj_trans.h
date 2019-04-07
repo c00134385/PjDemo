@@ -37,6 +37,10 @@ public:
     void register_cb(pj_cb *cb);
     pj_bool_t running;
     int do_select();
+    int do_select1();
+
+    int do_iobuffer();
+
 public:
     pj_sock_t ss=PJ_INVALID_SOCKET, cs=PJ_INVALID_SOCKET;
     pj_sockaddr_in dstaddr, srcaddr;
@@ -47,6 +51,13 @@ public:
 
     /*do_select*/
     pj_sock_t sss[3];
+
+    /*io_queue*/
+    pj_ioqueue_t *ioque = NULL;
+    pj_ioqueue_key_t *skey = NULL, *ckey = NULL;
+    pj_ioqueue_op_key_t read_op, write_op;
+    char *send_buf, *recv_buf;
+    int bufsize = 1024;
 
     pj_cb *m_cb = NULL;
 };
