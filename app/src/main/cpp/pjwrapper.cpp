@@ -89,6 +89,7 @@ int pjwrapper_stop() {
     FUNC_ENTER
 
     delete trans;
+    trans = NULL;
 
     FUNC_EXIT
     return 0;
@@ -96,7 +97,20 @@ int pjwrapper_stop() {
 
 int pjwrapper_action() {
     FUNC_ENTER
+    pj_status_t rc;
+    pj_sockaddr_in dstaddr;
+    pj_str_t s;
+    pj_bzero(&dstaddr, sizeof(dstaddr));
+    dstaddr.sin_family = pj_AF_INET();
+    dstaddr.sin_port = pj_htons(trans->port);
+    dstaddr.sin_addr = pj_inet_addr(pj_cstr(&s, trans->ipaddr.c_str()));
+
+    std::string test = "test";
+    pj_ssize_t len = test.size();
+    if(trans) {
+        rc = trans->sendto(test.c_str(), &len, &dstaddr, sizeof(dstaddr));
+    }
 
     FUNC_EXIT
-    return 0;
+    return rc;
 }

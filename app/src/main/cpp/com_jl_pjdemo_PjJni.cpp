@@ -59,6 +59,7 @@ JNIEXPORT jstring JNICALL Java_com_jl_pjdemo_PjJni_version
         (JNIEnv *env, jobject obj) {
     int random = pj_rand();
     std::string version = "version:" + std::to_string(random);
+    pjwrapper_action();
     return env->NewStringUTF(version.c_str());
 }
 
