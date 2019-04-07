@@ -7,8 +7,8 @@
 #include "pj_utils.h"
 
 #define BASIC_SOCKET  0
-#define SELECT_SOCKET 0
-#define IOBUFF_SOCKET 1
+#define SELECT_SOCKET 1
+#define IOBUFF_SOCKET 0
 
 #define THIS_FILE	    "test_udp"
 
@@ -103,7 +103,7 @@ int trans_proc(void* params) {
 	    }
 #endif
 #elif SELECT_SOCKET
-        rc = trans->do_select();
+        rc = trans->do_select1();
 	    if(rc <= 0) {
             continue;
 	    }
@@ -323,9 +323,12 @@ int pj_trans::do_select1() {
     int result;
     fd_set readfds, testfds;
     FD_ZERO(&readfds);
+    FD_SET(ss, &readfds);//将服务器端socket加入到集合中
     FD_SET(sss[0], &readfds);//将服务器端socket加入到集合中
     FD_SET(sss[1], &readfds);//将服务器端socket加入到集合中
     FD_SET(sss[2], &readfds);//将服务器端socket加入到集合中
+
+
 
     while (1) {
         char ch;
@@ -333,7 +336,7 @@ int pj_trans::do_select1() {
         int nread;
         testfds = readfds;//将需要监视的描述符集copy到select查询队列中，select会对其修改，所以一定要分开使用变量
 
-        PJ_LOG(1, ("test", "server waiting"));
+        PJ_LOG(1, ("test", "server waiting %d-%d-%d-%d", ss, sss[0], sss[1], sss[2]));
         /*无限期阻塞，并测试文件描述符变动 */
         result = select(FD_SETSIZE, &testfds, (fd_set *)0,(fd_set *)0, (struct timeval *) 0); //FD_SETSIZE：系统默认的最大文件描述符
         PJ_LOG(1, ("test", "select result:%d", result));
@@ -344,6 +347,20 @@ int pj_trans::do_select1() {
         }
 
         /*找到相关文件描述符*/
+        if (FD_ISSET(ss, &testfds)) {
+            int nread;
+            ioctl(ss, FIONREAD, &nread);//取得数据量交给nread
+            char recvdata[512+4];
+            pj_memset(recvdata, 0, sizeof(recvdata));
+            pj_ssize_t received = sizeof(received);
+            rc = pj_sock_recv(ss, recvdata, &received, 0);
+            if (rc != PJ_SUCCESS) {
+                app_perror("...recv error", rc);
+                rc = -155;
+            } else {
+                PJ_LOG(1, ("", "ss received:%d data:%s  nread:%d", received, recvdata, nread));
+            }
+        }
         if (FD_ISSET(sss[0], &testfds)) {
             int nread;
             ioctl(sss[0], FIONREAD, &nread);//取得数据量交给nread
