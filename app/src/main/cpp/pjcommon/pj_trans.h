@@ -57,7 +57,7 @@ public:
     pj_ioqueue_key_t *skey = NULL, *ckey = NULL;
     pj_ioqueue_op_key_t read_op, write_op;
     char *send_buf, *recv_buf;
-    int bufsize = 1024;
+    pj_ssize_t bufsize = 1024;
 
     pj_cb *m_cb = NULL;
 };

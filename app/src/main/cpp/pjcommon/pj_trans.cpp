@@ -7,8 +7,8 @@
 #include "pj_utils.h"
 
 #define BASIC_SOCKET  0
-#define SELECT_SOCKET 1
-#define IOBUFF_SOCKET 0
+#define SELECT_SOCKET 0
+#define IOBUFF_SOCKET 1
 
 #define THIS_FILE	    "test_udp"
 
@@ -28,18 +28,22 @@ static void on_ioqueue_read(pj_ioqueue_key_t *key,
                             pj_ioqueue_op_key_t *op_key,
                             pj_ssize_t bytes_read)
 {
+    PJ_LOG(1, ("test", "on_ioqueue_read. key:%p op_key:%p bytes:%d", key, op_key, bytes_read));
+    pj_trans *trans = (pj_trans*)op_key->user_data;
+    PJ_LOG(1, ("test", "recv data:%s", trans->recv_buf));
     callback_read_key = key;
     callback_read_op = op_key;
     callback_read_size = bytes_read;
-    PJ_LOG(1, ("", "callback_read_size:%d", callback_read_size));
 //    TRACE__((THIS_FILE, "     callback_read_key = %p, bytes=%d",
 //            key, bytes_read));
+
 }
 
 static void on_ioqueue_write(pj_ioqueue_key_t *key,
                              pj_ioqueue_op_key_t *op_key,
                              pj_ssize_t bytes_written)
 {
+    PJ_LOG(1, ("test", "on_ioqueue_write"));
     callback_write_key = key;
     callback_write_op = op_key;
     callback_write_size = bytes_written;
@@ -50,6 +54,7 @@ static void on_ioqueue_accept(pj_ioqueue_key_t *key,
                               pj_ioqueue_op_key_t *op_key,
                               pj_sock_t sock, int status)
 {
+    PJ_LOG(1, ("test", "on_ioqueue_accept"));
     PJ_UNUSED_ARG(sock);
     callback_accept_key = key;
     callback_accept_op = op_key;
@@ -58,6 +63,7 @@ static void on_ioqueue_accept(pj_ioqueue_key_t *key,
 
 static void on_ioqueue_connect(pj_ioqueue_key_t *key, int status)
 {
+    PJ_LOG(1, ("test", "on_ioqueue_connect"));
     callback_connect_key = key;
     callback_connect_status = status;
 }
@@ -109,13 +115,16 @@ int trans_proc(void* params) {
 	    }
 #elif IOBUFF_SOCKET
 	    // iobuff test
-        trans->do_iobuffer();
+        rc = trans->do_iobuffer();
+	    if(rc > 0) {
+            continue;
+	    }
 #endif
         if(trans->m_cb) {
 	        trans->m_cb->on_event(1, "received", "data");
 	    }
         PJ_LOG(1, ("", "count:%d", count++));
-        pj_thread_sleep(1000);
+        pj_thread_sleep(4000);
     }
     FUNC_EXIT
     return 0;
@@ -181,22 +190,26 @@ pj_trans::pj_trans(pj_pool_factory *mem) : pj_obj(mem) {
         app_perror("...pj_ioqueue_create failed:", rc);
     }
 
-    rc = pj_ioqueue_set_default_concurrency(ioque, PJ_TRUE);
+    rc = pj_ioqueue_set_default_concurrency(ioque, PJ_FALSE);
     if (rc != PJ_SUCCESS) {
         app_perror("...pj_ioqueue_set_default_concurrency failed:", rc);
     }
+
+    PJ_LOG(3, (THIS_FILE, "...ioqueue unregister stress test 0/3, unregister in app (%s)",
+            pj_ioqueue_name()));
 
     rc = pj_ioqueue_register_sock(pool, ioque, ss, NULL,
                                   &test_cb, &skey);
     if (rc != PJ_SUCCESS) {
         app_perror("...error(10): ioqueue_register error", rc);
     }
+
+    PJ_LOG(3, (THIS_FILE, "skey:%p", skey));
     rc = pj_ioqueue_register_sock( pool, ioque, cs, NULL,
                                    &test_cb, &ckey);
     if (rc != PJ_SUCCESS) {
         app_perror("...error(11): ioqueue_register error", rc);
     }
-
 
     running = PJ_TRUE;
     m_thread = new pj_thread(mem, trans_proc, this);
@@ -328,8 +341,6 @@ int pj_trans::do_select1() {
     FD_SET(sss[1], &readfds);//将服务器端socket加入到集合中
     FD_SET(sss[2], &readfds);//将服务器端socket加入到集合中
 
-
-
     while (1) {
         char ch;
         int fd;
@@ -414,8 +425,12 @@ int pj_trans::do_iobuffer() {
     pj_bzero(&addr, sizeof(addr));
     addrlen = sizeof(addr);
     bytes = bufsize;
-    rc = pj_ioqueue_recvfrom(skey, &read_op, recv_buf, &bytes, 0,
-                             &addr, &addrlen);
+    pj_create_random_string(recv_buf, bufsize);
+    recv_buf[10] = 0;
+    PJ_LOG(1, ("test", "random string. data:%s", recv_buf));
+    read_op.user_data = this;
+    rc = pj_ioqueue_recvfrom(skey, &read_op, recv_buf, &bufsize, 0, &addr, &addrlen);
+
     if (rc != PJ_SUCCESS && rc != PJ_EPENDING) {
         app_perror("...error: pj_ioqueue_recvfrom", rc);
     } else if (rc == PJ_EPENDING) {
@@ -425,6 +440,25 @@ int pj_trans::do_iobuffer() {
         PJ_LOG(3, (THIS_FILE,
                 "......error: recvfrom returned immediate ok!"));
     }
+
+    rc = pj_ioqueue_poll(ioque, NULL);
+    if(rc < 0) {
+        app_perror("...error: pj_ioqueue_recvfrom", rc);
+    } else if(rc == 0) {
+        PJ_LOG(3, (THIS_FILE, "......timed out (no event)"));
+    } else {
+        PJ_LOG(3, (THIS_FILE, "indicate numbers of events:%d", rc));
+        PJ_LOG(1, ("test", "received data:%s read_op:%p", recv_buf, &read_op));
+    }
+//    if (rc != PJ_SUCCESS && rc != PJ_EPENDING) {
+//        app_perror("...error: pj_ioqueue_recvfrom", rc);
+//    } else if (rc == PJ_EPENDING) {
+//        PJ_LOG(3, (THIS_FILE,
+//                "......ok: recvfrom returned pending"));
+//    } else {
+//        PJ_LOG(3, (THIS_FILE,
+//                "......error: recvfrom returned immediate ok!"));
+//    }
 
     return rc;
 }
